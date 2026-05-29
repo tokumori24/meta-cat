@@ -7,6 +7,9 @@
 # Project configuration
 !config.yaml
 
+# Run artifacts (never version-controlled)
+runs/
+
 # Facets and workflows (version-controlled)
 !workflows/
 !workflows/**
