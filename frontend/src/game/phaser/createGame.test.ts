@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import { GAME_BACKGROUND_COLOR, GAME_HEIGHT, GAME_WIDTH } from '../../constants.ts';
-import { DemoScene } from './DemoScene.ts';
+import { VillageScene } from './VillageScene.ts';
 import { createGame } from './createGame.ts';
 
 const { destroyMock, gameConstructorMock } = vi.hoisted(() => {
@@ -37,7 +37,7 @@ test('creates a Phaser game with the configured contract', () => {
     height: GAME_HEIGHT,
     parent,
     backgroundColor: GAME_BACKGROUND_COLOR,
-    scene: [DemoScene],
+    scene: [VillageScene],
   });
   expect(game).toEqual({ destroy: destroyMock });
 });
