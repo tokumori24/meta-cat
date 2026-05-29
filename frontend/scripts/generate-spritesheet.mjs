@@ -22,6 +22,13 @@ const SHEET_HEIGHT = PLAYER_FRAME_HEIGHT * ROW_COUNT;
 // Padding kept around each cat inside its cell so neighbouring frames never bleed.
 const CELL_PADDING = 3;
 const ALPHA_THRESHOLD = 20;
+// The artwork sits on a baked-in checkerboard made of two neutral-grey tones.
+// The cats' white fur is warm (R > G > B), so a pixel that is both neutral
+// (R == G == B within NEUTRAL_TOLERANCE) and bright is background — even when it
+// is trapped between the legs or between body and tail, where a flood fill from
+// the border can't reach. Shadows stay (they are darker than BG_MIN_BRIGHTNESS).
+const NEUTRAL_TOLERANCE = 6;
+const BG_MIN_BRIGHTNESS = 233;
 
 const { data, info } = await sharp(SOURCE_PATH)
   .ensureAlpha()
@@ -29,6 +36,19 @@ const { data, info } = await sharp(SOURCE_PATH)
   .toBuffer({ resolveWithObject: true });
 
 const { width, height, channels } = info;
+
+// Knock out the checkerboard background everywhere by colour, then work off alpha.
+for (let i = 0; i < width * height; i += 1) {
+  const offset = i * channels;
+  const r = data[offset];
+  const g = data[offset + 1];
+  const b = data[offset + 2];
+  const isNeutral = Math.max(r, g, b) - Math.min(r, g, b) <= NEUTRAL_TOLERANCE;
+  if (isNeutral && Math.min(r, g, b) >= BG_MIN_BRIGHTNESS) {
+    data[offset + 3] = 0;
+  }
+}
+
 const alphaAt = (x, y) => data[(y * width + x) * channels + 3];
 
 // Collapse the source onto its X/Y axes and split into runs of "has any cat pixel".
