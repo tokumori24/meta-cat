@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import type { Express } from 'express';
 import request from 'supertest';
 import test from 'node:test';
 import { HEALTH_ROUTE_PATH } from '../../src/adapters/http/constants.ts';
@@ -17,15 +16,24 @@ test('createServer wires the HTTP router', async () => {
   assert.equal(response.body.uptimeSeconds, 2);
 });
 
-test('startServer listens on the configured port', () => {
-  let listenedPort = 0;
-  const app = {
-    listen(port: number) {
-      listenedPort = port;
-    },
-  } as unknown as Express;
+test('startServer listens on the configured port', async () => {
+  const app = createServer({
+    now: () => new Date('2026-05-29T00:00:00.000Z'),
+    uptimeSeconds: () => 0,
+  });
 
-  startServer(app, { port: 3000 });
+  const server = startServer(app, { port: 0 });
 
-  assert.equal(listenedPort, 3000);
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  assert.ok(server.address());
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
 });
