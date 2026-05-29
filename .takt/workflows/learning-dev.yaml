@@ -1,0 +1,237 @@
+name: learning-dev
+description: 学習重視の開発ワークフロー（調査 → 設計）。実装前に公式ドキュメント/ベストプラクティスを調査し、クリーンアーキテクチャを前提とした設計を行う
+workflow_config:
+  provider_options:
+    codex:
+      network_access: true
+    opencode:
+      network_access: true
+max_steps: 15
+initial_step: researcher
+
+# カスタムペルソナ定義（builtin に無いものをファイル参照）
+personas:
+  researcher: ../facets/personas/researcher.md
+  tester: ../facets/personas/tester.md
+  reviewer: ../facets/personas/reviewer.md
+  teacher: ../facets/personas/teacher.md
+
+steps:
+  - name: researcher
+    persona: researcher
+    knowledge: research
+    edit: true
+    provider: claude
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Glob
+          - Grep
+          - WebSearch
+          - WebFetch
+          - Write
+    instruction: |
+      実装に必要な技術を、実装に着手する前に調査してください。
+      公式ドキュメントを一次情報として優先し、以下を調査レポートにまとめてください。
+
+      - 参照した公式ドキュメントの URL と対象バージョン
+      - 採用を推奨する実装パターン／ベストプラクティスとその根拠
+      - 注意すべき非推奨 API・破壊的変更・既知の落とし穴
+      - 後続の設計で押さえるべき重要な概念
+
+      推測は避け、出典を明示してください。確認できていない点は「未確認」と明記してください。
+    output_contracts:
+      report:
+        - name: research.md
+          format: |
+            # 技術調査レポート
+
+            ## 調査対象と前提
+            {対象技術・バージョン・調査範囲}
+
+            ## 参照した公式ドキュメント
+            {ドキュメント名・URL・バージョン}
+
+            ## 推奨する実装パターン／ベストプラクティス
+            {根拠とともに}
+
+            ## 注意点（非推奨 API・落とし穴・バージョン差異）
+            {内容}
+
+            ## 設計者への引き継ぎ事項
+            {次ステップで押さえるべき概念・判断材料}
+    rules:
+      - condition: 調査が完了した
+        next: planner
+      - condition: 情報不足などにより調査を進められない
+        next: ABORT
+        appendix: |
+          進められない理由:
+          - {理由}
+
+  - name: planner
+    persona: planner
+    knowledge: architecture
+    edit: false
+    provider: claude
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Glob
+          - Grep
+          - WebSearch
+          - WebFetch
+    instruction: |
+      調査結果（{previous_response}）を踏まえ、実装の設計を行ってください。
+
+      設計は **クリーンアーキテクチャの原理を前提** とし、以下を必ず満たすこと。
+
+      - 依存方向は外側 → 内側の一方向のみとし、依存性逆転の原則を遵守する
+      - ビジネスロジック（エンティティ／ユースケース）をフレームワーク・I/O・UI から分離する
+      - 層（エンティティ / ユースケース / インターフェースアダプタ / フレームワーク & ドライバ）の
+        責務と境界を明確にする
+
+      そのうえで、作成した設計を **設計・品質・保守性** の観点で自己レビューし、
+      採用した判断とトレードオフ、却下した代替案の理由を明記してください。
+    output_contracts:
+      report:
+        - name: plan.md
+          format: plan
+    rules:
+      - condition: 設計が完成した
+        next: implement
+      - condition: 調査が不足しており再調査が必要
+        next: researcher
+      - condition: 要件が不明確で設計を進められない
+        next: ABORT
+        appendix: |
+          確認事項:
+          - {質問1}
+          - {質問2}
+
+  - name: implement
+    persona: coder
+    policy: coding
+    knowledge: architecture
+    edit: true
+    provider: codex
+    required_permission_mode: edit
+    instruction: implement
+    rules:
+      - condition: 実装が完了した
+        next: test
+      - condition: 設計に問題があり再設計が必要
+        next: planner
+      - condition: 実装を進められない
+        next: ABORT
+
+  - name: test
+    persona: tester
+    policy: testing
+    edit: false
+    provider: claude
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Glob
+          - Grep
+          - Bash
+    instruction: |
+      実装に対して以下を実行し、結果を報告してください。
+
+      - ビルド
+      - 型チェック
+      - lint
+      - テスト
+
+      各コマンドの実行結果（成功 / 失敗、警告、エラー出力）を事実に基づいて報告し、
+      問題があれば再現手順と該当箇所を明示してください。
+      合否は推測ではなく、実際のコマンド出力で判断してください。
+    output_contracts:
+      report:
+        - name: test-report.md
+          format: test-report
+    rules:
+      - condition: 問題がある
+        next: implement
+      - condition: 問題がない
+        next: review
+
+  - name: review
+    persona: reviewer
+    policy: review
+    knowledge: architecture
+    edit: false
+    provider: claude
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Glob
+          - Grep
+          - Bash
+    instruction: |
+      実装されたコードを、設計・品質・保守性の観点でレビューしてください。
+
+      特に **クリーンアーキテクチャの原理** が守られているかを確認してください。
+      - 依存方向が外側 → 内側の一方向か（依存性逆転の遵守）
+      - 層（エンティティ / ユースケース / インターフェースアダプタ / フレームワーク & ドライバ）
+        の責務が分離されているか
+
+      あわせて品質（正しさ・エラーハンドリング・エッジケース・テスト十分性）と
+      保守性（命名・可読性・重複・凝集度 / 結合度）を点検してください。
+      指摘には重要度（must / should / nice-to-have）を付け、根拠と修正方針を添えてください。
+    rules:
+      - condition: 修正が必要
+        next: implement
+      - condition: 承認できる
+        next: learning
+
+  - name: learning
+    persona: teacher
+    knowledge: architecture
+    edit: true
+    provider: claude
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Glob
+          - Grep
+          - Write
+    instruction: |
+      今回の調査・設計・実装・レビューの過程を踏まえ、学習用のドキュメントを作成してください。
+      学習者が後から読んで理解・再現できるよう、以下を整理してください。
+
+      - なぜその実装にしたのか（背景・要件・判断の理由）
+      - 使用した技術（公式ドキュメント／バージョン、調査で得た要点）
+      - 重要な設計判断（特にクリーンアーキテクチャの観点と、採用したトレードオフ）
+      - 今後学ぶべき内容（次に深掘りすべきテーマ）
+
+      専門用語は初出時に短く補足し、確認した事実に基づいて記述してください。
+    output_contracts:
+      report:
+        - name: learning.md
+          format: |
+            # 学習ドキュメント
+
+            ## 何を作ったか（概要）
+            {内容}
+
+            ## なぜその実装にしたのか
+            {背景・要件・判断理由}
+
+            ## 使用した技術
+            {技術・バージョン・公式ドキュメント・調査要点}
+
+            ## 重要な設計判断
+            {クリーンアーキテクチャの観点・トレードオフ}
+
+            ## 今後学ぶべき内容
+            {次に深掘りすべきテーマ}
+    rules:
+      - condition: 学習ドキュメントの作成が完了した
+        next: COMPLETE
