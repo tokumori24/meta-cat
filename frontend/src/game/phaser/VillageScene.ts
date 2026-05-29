@@ -1,5 +1,20 @@
 import * as Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../../constants.ts';
+import {
+  PLAYER_ANIM_WALK_DOWN,
+  PLAYER_ANIM_WALK_LEFT,
+  PLAYER_ANIM_WALK_RIGHT,
+  PLAYER_ANIM_WALK_UP,
+  PLAYER_AVATAR_KEY,
+  PLAYER_AVATAR_PATH,
+  PLAYER_DISPLAY_SIZE,
+  PLAYER_FRAMES_PER_ROW,
+  PLAYER_FRAME_HEIGHT,
+  PLAYER_FRAME_WIDTH,
+  PLAYER_SPEED_PIXELS_PER_SECOND,
+  type MovementInput,
+  movePlayer,
+  resolvePlayerAnimationKey,
+} from '../domain/player.ts';
 import {
   TILE_SIZE,
   VILLAGE_MAP,
@@ -9,15 +24,18 @@ import {
   WORLD_PIXEL_WIDTH,
 } from '../domain/villageMap.ts';
 
-const CAMERA_SPEED_PIXELS_PER_SECOND = 260;
-
 export class VillageScene extends Phaser.Scene {
   private cursorKeys!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private player!: Phaser.GameObjects.Sprite;
 
   preload(): void {
     this.load.spritesheet(VILLAGE_TILESET_KEY, VILLAGE_TILESET_PATH, {
       frameWidth: TILE_SIZE,
       frameHeight: TILE_SIZE,
+    });
+    this.load.spritesheet(PLAYER_AVATAR_KEY, PLAYER_AVATAR_PATH, {
+      frameWidth: PLAYER_FRAME_WIDTH,
+      frameHeight: PLAYER_FRAME_HEIGHT,
     });
   }
 
@@ -42,6 +60,12 @@ export class VillageScene extends Phaser.Scene {
 
     layer.setDepth(0);
     this.cameras.main.setBounds(0, 0, WORLD_PIXEL_WIDTH, WORLD_PIXEL_HEIGHT);
+    this.player = this.add
+      .sprite(WORLD_PIXEL_WIDTH / 2, WORLD_PIXEL_HEIGHT / 2, PLAYER_AVATAR_KEY)
+      .setDisplaySize(PLAYER_DISPLAY_SIZE, PLAYER_DISPLAY_SIZE)
+      .setDepth(1);
+    this.cameras.main.startFollow(this.player);
+    this.createPlayerAnimations();
 
     if (!this.input.keyboard) {
       throw new Error('Keyboard input is required');
@@ -51,39 +75,73 @@ export class VillageScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    const distance = CAMERA_SPEED_PIXELS_PER_SECOND * (delta / 1000);
-    const camera = this.cameras.main;
+    const movementInput: MovementInput = {
+      horizontal: this.direction(this.cursorKeys.left, this.cursorKeys.right),
+      vertical: this.direction(this.cursorKeys.up, this.cursorKeys.down),
+    };
+    const nextPlayer = movePlayer(
+      {
+        x: this.player.x,
+        y: this.player.y,
+        width: this.player.displayWidth,
+        height: this.player.displayHeight,
+      },
+      movementInput,
+      PLAYER_SPEED_PIXELS_PER_SECOND * (delta / 1000),
+      {
+        width: WORLD_PIXEL_WIDTH,
+        height: WORLD_PIXEL_HEIGHT,
+      },
+    );
 
-    const nextScrollX =
-      camera.scrollX + this.horizontalDirection() * distance;
-    const nextScrollY =
-      camera.scrollY + this.verticalDirection() * distance;
-
-    camera.scrollX = Phaser.Math.Clamp(nextScrollX, 0, WORLD_PIXEL_WIDTH - GAME_WIDTH);
-    camera.scrollY = Phaser.Math.Clamp(nextScrollY, 0, WORLD_PIXEL_HEIGHT - GAME_HEIGHT);
+    this.player.setPosition(nextPlayer.x, nextPlayer.y);
+    this.updatePlayerAnimation(movementInput);
   }
 
-  private horizontalDirection(): number {
-    if (this.cursorKeys.left.isDown) {
+  private direction(
+    negativeKey: Phaser.Input.Keyboard.Key,
+    positiveKey: Phaser.Input.Keyboard.Key,
+  ): number {
+    if (negativeKey.isDown) {
       return -1;
     }
 
-    if (this.cursorKeys.right.isDown) {
+    if (positiveKey.isDown) {
       return 1;
     }
 
     return 0;
   }
 
-  private verticalDirection(): number {
-    if (this.cursorKeys.up.isDown) {
-      return -1;
+  private createPlayerAnimations(): void {
+    const animations = [
+      { key: PLAYER_ANIM_WALK_DOWN, row: 0 },
+      { key: PLAYER_ANIM_WALK_UP, row: 1 },
+      { key: PLAYER_ANIM_WALK_LEFT, row: 2 },
+      { key: PLAYER_ANIM_WALK_RIGHT, row: 3 },
+    ] as const;
+
+    for (const animation of animations) {
+      this.anims.create({
+        key: animation.key,
+        frames: this.anims.generateFrameNumbers(PLAYER_AVATAR_KEY, {
+          start: animation.row * PLAYER_FRAMES_PER_ROW,
+          end: (animation.row + 1) * PLAYER_FRAMES_PER_ROW - 1,
+        }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
+  }
+
+  private updatePlayerAnimation(input: MovementInput): void {
+    const animationKey = resolvePlayerAnimationKey(input);
+
+    if (animationKey) {
+      this.player.anims.play(animationKey, true);
+      return;
     }
 
-    if (this.cursorKeys.down.isDown) {
-      return 1;
-    }
-
-    return 0;
+    this.player.anims.stop();
   }
 }
