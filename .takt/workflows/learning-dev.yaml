@@ -22,8 +22,10 @@ steps:
     knowledge: research
     edit: true
     provider: claude
+    model: claude-sonnet-4-6
     provider_options:
       claude:
+        effort: medium
         allowed_tools:
           - Read
           - Glob
@@ -75,8 +77,10 @@ steps:
     knowledge: architecture
     edit: false
     provider: claude
+    model: claude-sonnet-4-6
     provider_options:
       claude:
+        effort: high
         allowed_tools:
           - Read
           - Glob
@@ -117,6 +121,10 @@ steps:
     edit: true
     provider: codex
     required_permission_mode: edit
+    provider_options:
+      codex:
+        reasoning_effort: medium
+        network_access: true
     instruction: implement
     rules:
       - condition: 実装が完了した
@@ -131,8 +139,10 @@ steps:
     policy: testing
     edit: false
     provider: claude
+    model: claude-haiku-4-5-20251001
     provider_options:
       claude:
+        effort: low
         allowed_tools:
           - Read
           - Glob
@@ -165,8 +175,10 @@ steps:
     knowledge: architecture
     edit: false
     provider: claude
+    model: claude-sonnet-4-6
     provider_options:
       claude:
+        effort: high
         allowed_tools:
           - Read
           - Glob
@@ -193,8 +205,10 @@ steps:
     persona: teacher
     edit: true
     provider: claude
+    model: claude-haiku-4-5-20251001
     provider_options:
       claude:
+        effort: low
         allowed_tools:
           - Read
           - Glob
