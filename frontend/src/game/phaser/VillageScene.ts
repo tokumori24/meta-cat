@@ -1,5 +1,21 @@
 import * as Phaser from 'phaser';
-import { BACKEND_WS_URL, GAME_HEIGHT, GAME_WIDTH } from '../../constants.ts';
+import { BACKEND_WS_URL } from '../../constants.ts';
+import {
+  PLAYER_ANIM_WALK_DOWN,
+  PLAYER_ANIM_WALK_LEFT,
+  PLAYER_ANIM_WALK_RIGHT,
+  PLAYER_ANIM_WALK_UP,
+  PLAYER_AVATAR_KEY,
+  PLAYER_AVATAR_PATH,
+  PLAYER_DISPLAY_SIZE,
+  PLAYER_FRAMES_PER_ROW,
+  PLAYER_FRAME_HEIGHT,
+  PLAYER_FRAME_WIDTH,
+  PLAYER_SPEED_PIXELS_PER_SECOND,
+  type MovementInput,
+  movePlayer,
+  resolvePlayerAnimationKey,
+} from '../domain/player.ts';
 import {
   TILE_SIZE,
   VILLAGE_MAP,
@@ -10,21 +26,23 @@ import {
 } from '../domain/villageMap.ts';
 import { connectToServer, type ServerConnection } from '../network/serverConnection.ts';
 
-const CAMERA_SPEED_PIXELS_PER_SECOND = 260;
-const REMOTE_PLAYER_COLOR = 0xff4444;
-const REMOTE_PLAYER_RADIUS = 8;
-const REMOTE_PLAYER_DEPTH = 1;
+const PLAYER_DEPTH = 1;
 
 export class VillageScene extends Phaser.Scene {
   private cursorKeys!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private player!: Phaser.GameObjects.Sprite;
   private connection: ServerConnection | null = null;
-  private readonly remotePlayers = new Map<string, Phaser.GameObjects.Graphics>();
+  private readonly remotePlayers = new Map<string, Phaser.GameObjects.Sprite>();
   private lastSentPosition: { readonly x: number; readonly y: number } | null = null;
 
   preload(): void {
     this.load.spritesheet(VILLAGE_TILESET_KEY, VILLAGE_TILESET_PATH, {
       frameWidth: TILE_SIZE,
       frameHeight: TILE_SIZE,
+    });
+    this.load.spritesheet(PLAYER_AVATAR_KEY, PLAYER_AVATAR_PATH, {
+      frameWidth: PLAYER_FRAME_WIDTH,
+      frameHeight: PLAYER_FRAME_HEIGHT,
     });
   }
 
@@ -49,6 +67,9 @@ export class VillageScene extends Phaser.Scene {
 
     layer.setDepth(0);
     this.cameras.main.setBounds(0, 0, WORLD_PIXEL_WIDTH, WORLD_PIXEL_HEIGHT);
+    this.createPlayerAnimations();
+    this.player = this.createAvatar(WORLD_PIXEL_WIDTH / 2, WORLD_PIXEL_HEIGHT / 2);
+    this.cameras.main.startFollow(this.player);
 
     if (!this.input.keyboard) {
       throw new Error('Keyboard input is required');
@@ -59,14 +80,14 @@ export class VillageScene extends Phaser.Scene {
     this.connection = connectToServer(BACKEND_WS_URL, {
       onWelcome: (_playerId, currentPlayers) => {
         for (const player of currentPlayers) {
-          this.addRemotePlayer(player.playerId, player.x, player.y);
+          this.upsertRemotePlayer(player.playerId, player.x, player.y);
         }
       },
       onPlayerJoined: (playerId, x, y) => {
-        this.addRemotePlayer(playerId, x, y);
+        this.upsertRemotePlayer(playerId, x, y);
       },
       onPlayerMoved: (playerId, x, y) => {
-        this.updateRemotePlayer(playerId, x, y);
+        this.upsertRemotePlayer(playerId, x, y);
       },
       onPlayerLeft: (playerId) => {
         this.removeRemotePlayer(playerId);
@@ -75,17 +96,27 @@ export class VillageScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    const distance = CAMERA_SPEED_PIXELS_PER_SECOND * (delta / 1000);
-    const camera = this.cameras.main;
+    const movementInput: MovementInput = {
+      horizontal: this.direction(this.cursorKeys.left, this.cursorKeys.right),
+      vertical: this.direction(this.cursorKeys.up, this.cursorKeys.down),
+    };
+    const nextPlayer = movePlayer(
+      {
+        x: this.player.x,
+        y: this.player.y,
+        width: this.player.displayWidth,
+        height: this.player.displayHeight,
+      },
+      movementInput,
+      PLAYER_SPEED_PIXELS_PER_SECOND * (delta / 1000),
+      {
+        width: WORLD_PIXEL_WIDTH,
+        height: WORLD_PIXEL_HEIGHT,
+      },
+    );
 
-    const nextScrollX =
-      camera.scrollX + this.horizontalDirection() * distance;
-    const nextScrollY =
-      camera.scrollY + this.verticalDirection() * distance;
-
-    camera.scrollX = Phaser.Math.Clamp(nextScrollX, 0, WORLD_PIXEL_WIDTH - GAME_WIDTH);
-    camera.scrollY = Phaser.Math.Clamp(nextScrollY, 0, WORLD_PIXEL_HEIGHT - GAME_HEIGHT);
-
+    this.player.setPosition(nextPlayer.x, nextPlayer.y);
+    this.updateAvatarAnimation(this.player, movementInput);
     this.sendCurrentPosition();
   }
 
@@ -101,24 +132,15 @@ export class VillageScene extends Phaser.Scene {
     this.remotePlayers.clear();
   }
 
-  private horizontalDirection(): number {
-    if (this.cursorKeys.left.isDown) {
+  private direction(
+    negativeKey: Phaser.Input.Keyboard.Key,
+    positiveKey: Phaser.Input.Keyboard.Key,
+  ): number {
+    if (negativeKey.isDown) {
       return -1;
     }
 
-    if (this.cursorKeys.right.isDown) {
-      return 1;
-    }
-
-    return 0;
-  }
-
-  private verticalDirection(): number {
-    if (this.cursorKeys.up.isDown) {
-      return -1;
-    }
-
-    if (this.cursorKeys.down.isDown) {
+    if (positiveKey.isDown) {
       return 1;
     }
 
@@ -126,7 +148,10 @@ export class VillageScene extends Phaser.Scene {
   }
 
   private sendCurrentPosition(): void {
-    const position = this.currentPlayerPosition();
+    const position = {
+      x: Math.round(this.player.x),
+      y: Math.round(this.player.y),
+    };
 
     if (
       this.lastSentPosition
@@ -140,41 +165,21 @@ export class VillageScene extends Phaser.Scene {
     this.connection?.sendMove(position.x, position.y);
   }
 
-  private currentPlayerPosition(): { readonly x: number; readonly y: number } {
-    const camera = this.cameras.main;
-
-    return {
-      x: Math.round(camera.scrollX + GAME_WIDTH / 2),
-      y: Math.round(camera.scrollY + GAME_HEIGHT / 2),
-    };
-  }
-
-  private addRemotePlayer(id: string, x: number, y: number): void {
+  // Every player shares the same cat avatar, so remote players reuse the local
+  // animation set and infer their facing direction from how far they moved.
+  private upsertRemotePlayer(id: string, x: number, y: number): void {
     const existingPlayer = this.remotePlayers.get(id);
 
-    if (existingPlayer) {
-      existingPlayer.setPosition(x, y);
+    if (!existingPlayer) {
+      this.remotePlayers.set(id, this.createAvatar(x, y));
       return;
     }
 
-    const remotePlayer = this.add.graphics();
-
-    remotePlayer.fillStyle(REMOTE_PLAYER_COLOR);
-    remotePlayer.fillCircle(0, 0, REMOTE_PLAYER_RADIUS);
-    remotePlayer.setPosition(x, y);
-    remotePlayer.setDepth(REMOTE_PLAYER_DEPTH);
-    this.remotePlayers.set(id, remotePlayer);
-  }
-
-  private updateRemotePlayer(id: string, x: number, y: number): void {
-    const remotePlayer = this.remotePlayers.get(id);
-
-    if (!remotePlayer) {
-      this.addRemotePlayer(id, x, y);
-      return;
-    }
-
-    remotePlayer.setPosition(x, y);
+    this.updateAvatarAnimation(existingPlayer, {
+      horizontal: Math.sign(x - existingPlayer.x),
+      vertical: Math.sign(y - existingPlayer.y),
+    });
+    existingPlayer.setPosition(x, y);
   }
 
   private removeRemotePlayer(id: string): void {
@@ -186,5 +191,44 @@ export class VillageScene extends Phaser.Scene {
 
     remotePlayer.destroy();
     this.remotePlayers.delete(id);
+  }
+
+  private createAvatar(x: number, y: number): Phaser.GameObjects.Sprite {
+    return this.add
+      .sprite(x, y, PLAYER_AVATAR_KEY)
+      .setDisplaySize(PLAYER_DISPLAY_SIZE, PLAYER_DISPLAY_SIZE)
+      .setDepth(PLAYER_DEPTH);
+  }
+
+  private createPlayerAnimations(): void {
+    const animations = [
+      { key: PLAYER_ANIM_WALK_DOWN, row: 0 },
+      { key: PLAYER_ANIM_WALK_UP, row: 1 },
+      { key: PLAYER_ANIM_WALK_LEFT, row: 2 },
+      { key: PLAYER_ANIM_WALK_RIGHT, row: 3 },
+    ] as const;
+
+    for (const animation of animations) {
+      this.anims.create({
+        key: animation.key,
+        frames: this.anims.generateFrameNumbers(PLAYER_AVATAR_KEY, {
+          start: animation.row * PLAYER_FRAMES_PER_ROW,
+          end: (animation.row + 1) * PLAYER_FRAMES_PER_ROW - 1,
+        }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
+  }
+
+  private updateAvatarAnimation(sprite: Phaser.GameObjects.Sprite, input: MovementInput): void {
+    const animationKey = resolvePlayerAnimationKey(input);
+
+    if (animationKey) {
+      sprite.anims.play(animationKey, true);
+      return;
+    }
+
+    sprite.anims.stop();
   }
 }
