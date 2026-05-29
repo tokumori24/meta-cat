@@ -1,5 +1,11 @@
 import * as Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../../constants.ts';
+import {
+  PLAYER_AVATAR_KEY,
+  PLAYER_AVATAR_PATH,
+  PLAYER_DISPLAY_SIZE,
+  PLAYER_SPEED_PIXELS_PER_SECOND,
+  movePlayer,
+} from '../domain/player.ts';
 import {
   TILE_SIZE,
   VILLAGE_MAP,
@@ -9,16 +15,16 @@ import {
   WORLD_PIXEL_WIDTH,
 } from '../domain/villageMap.ts';
 
-const CAMERA_SPEED_PIXELS_PER_SECOND = 260;
-
 export class VillageScene extends Phaser.Scene {
   private cursorKeys!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private player!: Phaser.GameObjects.Image;
 
   preload(): void {
     this.load.spritesheet(VILLAGE_TILESET_KEY, VILLAGE_TILESET_PATH, {
       frameWidth: TILE_SIZE,
       frameHeight: TILE_SIZE,
     });
+    this.load.image(PLAYER_AVATAR_KEY, PLAYER_AVATAR_PATH);
   }
 
   create(): void {
@@ -42,6 +48,11 @@ export class VillageScene extends Phaser.Scene {
 
     layer.setDepth(0);
     this.cameras.main.setBounds(0, 0, WORLD_PIXEL_WIDTH, WORLD_PIXEL_HEIGHT);
+    this.player = this.add
+      .image(WORLD_PIXEL_WIDTH / 2, WORLD_PIXEL_HEIGHT / 2, PLAYER_AVATAR_KEY)
+      .setDisplaySize(PLAYER_DISPLAY_SIZE, PLAYER_DISPLAY_SIZE)
+      .setDepth(1);
+    this.cameras.main.startFollow(this.player);
 
     if (!this.input.keyboard) {
       throw new Error('Keyboard input is required');
@@ -51,36 +62,36 @@ export class VillageScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    const distance = CAMERA_SPEED_PIXELS_PER_SECOND * (delta / 1000);
-    const camera = this.cameras.main;
+    const nextPlayer = movePlayer(
+      {
+        x: this.player.x,
+        y: this.player.y,
+        width: this.player.displayWidth,
+        height: this.player.displayHeight,
+      },
+      {
+        horizontal: this.direction(this.cursorKeys.left, this.cursorKeys.right),
+        vertical: this.direction(this.cursorKeys.up, this.cursorKeys.down),
+      },
+      PLAYER_SPEED_PIXELS_PER_SECOND * (delta / 1000),
+      {
+        width: WORLD_PIXEL_WIDTH,
+        height: WORLD_PIXEL_HEIGHT,
+      },
+    );
 
-    const nextScrollX =
-      camera.scrollX + this.horizontalDirection() * distance;
-    const nextScrollY =
-      camera.scrollY + this.verticalDirection() * distance;
-
-    camera.scrollX = Phaser.Math.Clamp(nextScrollX, 0, WORLD_PIXEL_WIDTH - GAME_WIDTH);
-    camera.scrollY = Phaser.Math.Clamp(nextScrollY, 0, WORLD_PIXEL_HEIGHT - GAME_HEIGHT);
+    this.player.setPosition(nextPlayer.x, nextPlayer.y);
   }
 
-  private horizontalDirection(): number {
-    if (this.cursorKeys.left.isDown) {
+  private direction(
+    negativeKey: Phaser.Input.Keyboard.Key,
+    positiveKey: Phaser.Input.Keyboard.Key,
+  ): number {
+    if (negativeKey.isDown) {
       return -1;
     }
 
-    if (this.cursorKeys.right.isDown) {
-      return 1;
-    }
-
-    return 0;
-  }
-
-  private verticalDirection(): number {
-    if (this.cursorKeys.up.isDown) {
-      return -1;
-    }
-
-    if (this.cursorKeys.down.isDown) {
+    if (positiveKey.isDown) {
       return 1;
     }
 
