@@ -1,9 +1,18 @@
 import {
+  PLAYER_ANIM_WALK_DOWN,
+  PLAYER_ANIM_WALK_LEFT,
+  PLAYER_ANIM_WALK_RIGHT,
+  PLAYER_ANIM_WALK_UP,
   PLAYER_AVATAR_KEY,
   PLAYER_AVATAR_PATH,
   PLAYER_DISPLAY_SIZE,
+  PLAYER_FRAMES_PER_ROW,
+  PLAYER_FRAME_HEIGHT,
+  PLAYER_FRAME_WIDTH,
+  PLAYER_SPRITE_ROW_COUNT,
   PLAYER_SPEED_PIXELS_PER_SECOND,
   movePlayer,
+  resolvePlayerAnimationKey,
 } from './player.ts';
 
 const PLAYER = {
@@ -23,6 +32,17 @@ test('defines the cat avatar asset contract', () => {
   expect(PLAYER_AVATAR_PATH).toBe('/assets/cat-mike.png');
   expect(PLAYER_DISPLAY_SIZE).toBe(48);
   expect(PLAYER_SPEED_PIXELS_PER_SECOND).toBe(180);
+});
+
+test('defines the cat avatar spritesheet contract', () => {
+  expect(PLAYER_FRAME_WIDTH).toBe(64);
+  expect(PLAYER_FRAME_HEIGHT).toBe(64);
+  expect(PLAYER_FRAMES_PER_ROW).toBe(4);
+  expect(PLAYER_SPRITE_ROW_COUNT).toBe(4);
+  expect(PLAYER_ANIM_WALK_DOWN).toBe('cat-walk-down');
+  expect(PLAYER_ANIM_WALK_UP).toBe('cat-walk-up');
+  expect(PLAYER_ANIM_WALK_LEFT).toBe('cat-walk-left');
+  expect(PLAYER_ANIM_WALK_RIGHT).toBe('cat-walk-right');
 });
 
 test('moves the player by input direction and distance', () => {
@@ -75,4 +95,17 @@ test('throws when movement distance is negative', () => {
       BOUNDS,
     ),
   ).toThrow('distance must be zero or greater');
+});
+
+test('resolves the player animation key from movement input', () => {
+  expect(resolvePlayerAnimationKey({ horizontal: 0, vertical: -1 })).toBe(PLAYER_ANIM_WALK_UP);
+  expect(resolvePlayerAnimationKey({ horizontal: 0, vertical: 1 })).toBe(PLAYER_ANIM_WALK_DOWN);
+  expect(resolvePlayerAnimationKey({ horizontal: -1, vertical: 0 })).toBe(PLAYER_ANIM_WALK_LEFT);
+  expect(resolvePlayerAnimationKey({ horizontal: 1, vertical: 0 })).toBe(PLAYER_ANIM_WALK_RIGHT);
+  expect(resolvePlayerAnimationKey({ horizontal: 0, vertical: 0 })).toBeNull();
+});
+
+test('prioritizes vertical player animation over horizontal animation', () => {
+  expect(resolvePlayerAnimationKey({ horizontal: 1, vertical: -1 })).toBe(PLAYER_ANIM_WALK_UP);
+  expect(resolvePlayerAnimationKey({ horizontal: -1, vertical: 1 })).toBe(PLAYER_ANIM_WALK_DOWN);
 });

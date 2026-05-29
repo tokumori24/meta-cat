@@ -1,7 +1,23 @@
 export const PLAYER_AVATAR_KEY = 'cat-mike';
 export const PLAYER_AVATAR_PATH = '/assets/cat-mike.png';
 export const PLAYER_DISPLAY_SIZE = 48;
+export {
+  PLAYER_FRAME_HEIGHT,
+  PLAYER_FRAMES_PER_ROW,
+  PLAYER_FRAME_WIDTH,
+  PLAYER_SPRITE_ROW_COUNT,
+} from './playerSpriteSpec.mjs';
+export const PLAYER_ANIM_WALK_DOWN = 'cat-walk-down';
+export const PLAYER_ANIM_WALK_UP = 'cat-walk-up';
+export const PLAYER_ANIM_WALK_LEFT = 'cat-walk-left';
+export const PLAYER_ANIM_WALK_RIGHT = 'cat-walk-right';
 export const PLAYER_SPEED_PIXELS_PER_SECOND = 180;
+
+export type PlayerAnimationKey =
+  | typeof PLAYER_ANIM_WALK_DOWN
+  | typeof PLAYER_ANIM_WALK_UP
+  | typeof PLAYER_ANIM_WALK_LEFT
+  | typeof PLAYER_ANIM_WALK_RIGHT;
 
 export interface Player {
   readonly x: number;
@@ -76,4 +92,27 @@ export const movePlayer = (
     x: clamp(player.x + input.horizontal * distance, halfWidth, bounds.width - halfWidth),
     y: clamp(player.y + input.vertical * distance, halfHeight, bounds.height - halfHeight),
   };
+};
+
+export const resolvePlayerAnimationKey = (input: MovementInput): PlayerAnimationKey | null => {
+  assertFiniteNumber('horizontal input', input.horizontal);
+  assertFiniteNumber('vertical input', input.vertical);
+
+  if (input.vertical < 0) {
+    return PLAYER_ANIM_WALK_UP;
+  }
+
+  if (input.vertical > 0) {
+    return PLAYER_ANIM_WALK_DOWN;
+  }
+
+  if (input.horizontal < 0) {
+    return PLAYER_ANIM_WALK_LEFT;
+  }
+
+  if (input.horizontal > 0) {
+    return PLAYER_ANIM_WALK_RIGHT;
+  }
+
+  return null;
 };
