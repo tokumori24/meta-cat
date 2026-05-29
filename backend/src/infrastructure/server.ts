@@ -1,3 +1,4 @@
+import http from 'node:http';
 import express, { type Express } from 'express';
 import type { RuntimeStatusSource } from '../usecases/ports.ts';
 import { createHttpRouter } from '../adapters/http/router.ts';
@@ -14,6 +15,10 @@ export function createServer(runtimeStatusSource: RuntimeStatusSource): Express 
   return app;
 }
 
-export function startServer(app: Express, config: ServerConfig): void {
-  app.listen(config.port);
+export function startServer(app: Express, config: ServerConfig): http.Server {
+  const httpServer = http.createServer(app);
+
+  httpServer.listen(config.port);
+
+  return httpServer;
 }
