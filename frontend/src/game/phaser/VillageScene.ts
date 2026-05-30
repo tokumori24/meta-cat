@@ -1,5 +1,11 @@
 import * as Phaser from 'phaser';
-import { BACKEND_WS_URL } from '../../constants.ts';
+import { BACKEND_WS_URL, VILLAGE_ROOM_NAME } from '../../constants.ts';
+import {
+  areCatsOverlapping,
+  canEmitCatCollision,
+  createCatCollisionEvent,
+  type CatCollisionEvent,
+} from '../domain/catCollision.ts';
 import {
   PLAYER_ANIM_WALK_DOWN,
   PLAYER_ANIM_WALK_LEFT,
@@ -33,9 +39,14 @@ export class VillageScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
   private connection: ServerConnection | null = null;
   private readonly remotePlayers = new Map<string, Phaser.GameObjects.Sprite>();
+  private playerId: string | null = null;
+  private readonly lastCatCollisionAtByRemotePlayerId = new Map<string, number>();
   private lastSentPosition: { readonly x: number; readonly y: number } | null = null;
 
-  constructor(private readonly onPlayerReady?: (playerId: string) => void) {
+  constructor(
+    private readonly onPlayerReady?: (playerId: string) => void,
+    private readonly onCatCollision?: (event: CatCollisionEvent) => void,
+  ) {
     super();
   }
 
@@ -84,6 +95,7 @@ export class VillageScene extends Phaser.Scene {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
     this.connection = connectToServer(BACKEND_WS_URL, {
       onWelcome: (playerId, currentPlayers) => {
+        this.playerId = playerId;
         this.onPlayerReady?.(playerId);
 
         for (const player of currentPlayers) {
@@ -102,7 +114,7 @@ export class VillageScene extends Phaser.Scene {
     });
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     const movementInput: MovementInput = {
       horizontal: this.direction(this.cursorKeys.left, this.cursorKeys.right),
       vertical: this.direction(this.cursorKeys.up, this.cursorKeys.down),
@@ -125,13 +137,16 @@ export class VillageScene extends Phaser.Scene {
     this.player.setPosition(nextPlayer.x, nextPlayer.y);
     this.updateAvatarAnimation(this.player, movementInput);
     this.sendCurrentPosition();
+    this.emitCatCollisions(time);
   }
 
   shutdown(): void {
     this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
     this.connection?.close();
     this.connection = null;
+    this.playerId = null;
     this.lastSentPosition = null;
+    this.lastCatCollisionAtByRemotePlayerId.clear();
 
     for (const remotePlayer of this.remotePlayers.values()) {
       remotePlayer.destroy();
@@ -201,6 +216,7 @@ export class VillageScene extends Phaser.Scene {
 
     remotePlayer.destroy();
     this.remotePlayers.delete(id);
+    this.lastCatCollisionAtByRemotePlayerId.delete(id);
   }
 
   private createAvatar(x: number, y: number): Phaser.GameObjects.Sprite {
@@ -240,5 +256,48 @@ export class VillageScene extends Phaser.Scene {
     }
 
     sprite.anims.stop();
+  }
+
+  private emitCatCollisions(nowMs: number): void {
+    if (!this.playerId || !this.onCatCollision) {
+      return;
+    }
+
+    for (const [remotePlayerId, remotePlayer] of this.remotePlayers) {
+      if (!this.isCollidingWithRemotePlayer(remotePlayer)) {
+        continue;
+      }
+
+      const lastCollisionAt = this.lastCatCollisionAtByRemotePlayerId.get(remotePlayerId) ?? null;
+
+      if (!canEmitCatCollision(nowMs, lastCollisionAt)) {
+        continue;
+      }
+
+      this.lastCatCollisionAtByRemotePlayerId.set(remotePlayerId, nowMs);
+      this.onCatCollision(createCatCollisionEvent({
+        roomName: VILLAGE_ROOM_NAME,
+        fromCatId: this.playerId,
+        toCatId: remotePlayerId,
+        occurredAt: new Date().toISOString(),
+      }));
+    }
+  }
+
+  private isCollidingWithRemotePlayer(remotePlayer: Phaser.GameObjects.Sprite): boolean {
+    return areCatsOverlapping(
+      {
+        x: this.player.x,
+        y: this.player.y,
+        width: this.player.displayWidth,
+        height: this.player.displayHeight,
+      },
+      {
+        x: remotePlayer.x,
+        y: remotePlayer.y,
+        width: remotePlayer.displayWidth,
+        height: remotePlayer.displayHeight,
+      },
+    );
   }
 }

@@ -3,6 +3,7 @@ services:
     build: ./backend
     environment:
       PORT: "3000"
+      LIVEKIT_URL: "http://livekit:7880"
       LIVEKIT_API_KEY: "devkey"
       LIVEKIT_API_SECRET: "secret"
     ports:
@@ -18,6 +19,17 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
+  agent:
+    build: ./agent
+    environment:
+      LIVEKIT_URL: "ws://livekit:7880"
+      LIVEKIT_API_KEY: "devkey"
+      LIVEKIT_API_SECRET: "secret"
+    volumes:
+      - ./agent:/app
+    depends_on:
+      - livekit
 
   livekit:
     image: livekit/livekit-server:latest

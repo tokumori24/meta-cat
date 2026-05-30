@@ -13,6 +13,7 @@ import {
 
 export type VoicePanelProps = {
   playerId: string;
+  onConnectionReady?: (connection: VoiceConnection | null) => void;
 };
 
 const STATUS_LABELS: Record<VoiceConnectionStatus, string> = {
@@ -22,7 +23,7 @@ const STATUS_LABELS: Record<VoiceConnectionStatus, string> = {
   error: 'Voice error',
 };
 
-export function VoicePanel({ playerId }: VoicePanelProps) {
+export function VoicePanel({ playerId, onConnectionReady }: VoicePanelProps) {
   const [status, setStatus] = useState<VoiceConnectionStatus>('connecting');
   const [needsInteraction, setNeedsInteraction] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
@@ -43,12 +44,14 @@ export function VoicePanel({ playerId }: VoicePanelProps) {
     );
 
     connectionRef.current = connection;
+    onConnectionReady?.(connection);
 
     return () => {
       connection.disconnect();
       connectionRef.current = null;
+      onConnectionReady?.(null);
     };
-  }, [playerId]);
+  }, [onConnectionReady, playerId]);
 
   const enableAudio = (): void => {
     const connection = connectionRef.current;

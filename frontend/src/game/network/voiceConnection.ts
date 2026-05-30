@@ -1,4 +1,5 @@
-import { Room, RoomEvent, Track } from 'livekit-client';
+import { ConnectionState, Room, RoomEvent, Track } from 'livekit-client';
+import { CAT_COLLISION_TOPIC, type CatCollisionEvent } from '../domain/catCollision.ts';
 
 export type VoiceConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -10,6 +11,7 @@ export type VoiceConnectionCallbacks = {
 export type VoiceConnection = {
   enableAudio(): Promise<void>;
   setMicrophoneEnabled(enabled: boolean): Promise<void>;
+  sendCatCollision(event: CatCollisionEvent): Promise<void>;
   disconnect(): void;
 };
 
@@ -75,6 +77,17 @@ export function connectToVoice(
     },
     async setMicrophoneEnabled(enabled: boolean): Promise<void> {
       await room.localParticipant.setMicrophoneEnabled(enabled);
+    },
+    async sendCatCollision(event: CatCollisionEvent): Promise<void> {
+      if (room.state !== ConnectionState.Connected || aborted) {
+        return;
+      }
+
+      const payload = new TextEncoder().encode(JSON.stringify(event));
+      await room.localParticipant.publishData(payload, {
+        reliable: true,
+        topic: CAT_COLLISION_TOPIC,
+      });
     },
     disconnect(): void {
       aborted = true;

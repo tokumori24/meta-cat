@@ -27,16 +27,22 @@ test('creates the Phaser game in the configured container', () => {
   const gameContainer = container.querySelector(`#${GAME_CONTAINER_ID}`);
 
   expect(gameContainer).toBeInstanceOf(HTMLDivElement);
-  expect(createGameMock).toHaveBeenCalledWith(gameContainer, { onPlayerReady: undefined });
+  expect(createGameMock).toHaveBeenCalledWith(gameContainer, {
+    onPlayerReady: undefined,
+    onCatCollision: undefined,
+  });
 });
 
-test('passes onPlayerReady to createGame', () => {
+test('passes callbacks to createGame', () => {
   const onPlayerReady = vi.fn();
-  const { container } = render(<PhaserGame onPlayerReady={onPlayerReady} />);
+  const onCatCollision = vi.fn();
+  const { container } = render(
+    <PhaserGame onPlayerReady={onPlayerReady} onCatCollision={onCatCollision} />,
+  );
 
   const gameContainer = container.querySelector(`#${GAME_CONTAINER_ID}`);
 
-  expect(createGameMock).toHaveBeenCalledWith(gameContainer, { onPlayerReady });
+  expect(createGameMock).toHaveBeenCalledWith(gameContainer, { onPlayerReady, onCatCollision });
 });
 
 test('destroys the Phaser game on unmount', () => {
