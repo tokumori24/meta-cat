@@ -3,6 +3,8 @@ services:
     build: ./backend
     environment:
       PORT: "3000"
+      LIVEKIT_API_KEY: "devkey"
+      LIVEKIT_API_SECRET: "secret"
     ports:
       - "3000:3000"
     volumes:
@@ -16,3 +18,11 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"

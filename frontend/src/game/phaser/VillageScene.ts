@@ -35,6 +35,10 @@ export class VillageScene extends Phaser.Scene {
   private readonly remotePlayers = new Map<string, Phaser.GameObjects.Sprite>();
   private lastSentPosition: { readonly x: number; readonly y: number } | null = null;
 
+  constructor(private readonly onPlayerReady?: (playerId: string) => void) {
+    super();
+  }
+
   preload(): void {
     this.load.spritesheet(VILLAGE_TILESET_KEY, VILLAGE_TILESET_PATH, {
       frameWidth: TILE_SIZE,
@@ -78,7 +82,9 @@ export class VillageScene extends Phaser.Scene {
     this.cursorKeys = this.input.keyboard.createCursorKeys();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
     this.connection = connectToServer(BACKEND_WS_URL, {
-      onWelcome: (_playerId, currentPlayers) => {
+      onWelcome: (playerId, currentPlayers) => {
+        this.onPlayerReady?.(playerId);
+
         for (const player of currentPlayers) {
           this.upsertRemotePlayer(player.playerId, player.x, player.y);
         }

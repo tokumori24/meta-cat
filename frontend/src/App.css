@@ -70,3 +70,46 @@ h1 {
   width: 100%;
   height: 100%;
 }
+
+.game-stack {
+  display: grid;
+  gap: 0.75rem;
+  width: min(100%, 800px);
+}
+
+.voice-panel {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 0.5rem 0.75rem;
+}
+
+.voice-status {
+  color: #1d2433;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.voice-status-connected {
+  color: #157347;
+}
+
+.voice-status-error {
+  color: #b42318;
+}
+
+.voice-enable-button {
+  border: 1px solid #2f6fed;
+  border-radius: 6px;
+  background: #2f6fed;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.45rem 0.7rem;
+}

@@ -176,6 +176,19 @@ test('VillageScene renders remote players as cats and animates their movement', 
   expect(remotePlayer.destroy).toHaveBeenCalled();
 });
 
+test('VillageScene calls onPlayerReady with the assigned player ID on welcome', () => {
+  const connection = createConnection();
+  const onPlayerReady = vi.fn();
+  connectToServerMock.mockReturnValue(connection);
+  const scene = new VillageScene(onPlayerReady);
+
+  scene.create();
+  const callbacks = connectToServerMock.mock.calls[0][1] as ServerConnectionCallbacks;
+  callbacks.onWelcome('my-player-id', []);
+
+  expect(onPlayerReady).toHaveBeenCalledWith('my-player-id');
+});
+
 test('VillageScene closes the connection and destroys remote players on shutdown', () => {
   const connection = createConnection();
   connectToServerMock.mockReturnValue(connection);
