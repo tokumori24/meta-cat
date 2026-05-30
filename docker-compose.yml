@@ -4,8 +4,8 @@ services:
     environment:
       PORT: "3000"
       LIVEKIT_URL: "http://livekit:7880"
-      LIVEKIT_API_KEY: "devkey"
-      LIVEKIT_API_SECRET: "secret"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-devkey}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-secret}"
     ports:
       - "3000:3000"
     volumes:
@@ -14,6 +14,10 @@ services:
 
   frontend:
     build: ./frontend
+    environment:
+      VITE_BACKEND_WS_URL: "${VITE_BACKEND_WS_URL:-ws://localhost:3000}"
+      VITE_LIVEKIT_URL: "${VITE_LIVEKIT_URL:-ws://localhost:7880}"
+      VITE_LIVEKIT_TOKEN_API_URL: "${VITE_LIVEKIT_TOKEN_API_URL:-http://localhost:3000/api/livekit/token}"
     ports:
       - "5173:5173"
     volumes:
@@ -33,7 +37,7 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    command: --dev --bind 0.0.0.0 --node-ip 127.0.0.1
+    command: --dev --bind 0.0.0.0 --node-ip ${LIVEKIT_NODE_IP:-127.0.0.1}
     ports:
       - "7880:7880"
       - "7881:7881"
