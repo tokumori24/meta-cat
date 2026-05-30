@@ -81,6 +81,7 @@ export class VillageScene extends Phaser.Scene {
 
     this.cursorKeys = this.input.keyboard.createCursorKeys();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
     this.connection = connectToServer(BACKEND_WS_URL, {
       onWelcome: (playerId, currentPlayers) => {
         this.onPlayerReady?.(playerId);
@@ -127,6 +128,7 @@ export class VillageScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
     this.connection?.close();
     this.connection = null;
     this.lastSentPosition = null;
@@ -136,6 +138,10 @@ export class VillageScene extends Phaser.Scene {
     }
 
     this.remotePlayers.clear();
+  }
+
+  private onResize(): void {
+    this.scale.updateBounds();
   }
 
   private direction(
@@ -171,8 +177,6 @@ export class VillageScene extends Phaser.Scene {
     this.connection?.sendMove(position.x, position.y);
   }
 
-  // Every player shares the same cat avatar, so remote players reuse the local
-  // animation set and infer their facing direction from how far they moved.
   private upsertRemotePlayer(id: string, x: number, y: number): void {
     const existingPlayer = this.remotePlayers.get(id);
 

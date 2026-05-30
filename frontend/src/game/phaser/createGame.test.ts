@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { GAME_BACKGROUND_COLOR, GAME_HEIGHT, GAME_WIDTH } from '../../constants.ts';
+import { GAME_BACKGROUND_COLOR } from '../../constants.ts';
 import { VillageScene } from './VillageScene.ts';
 import { createGame } from './createGame.ts';
 
@@ -19,6 +19,10 @@ vi.mock('phaser', () => ({
   AUTO: 'AUTO',
   Game: gameConstructorMock,
   Scene: class Scene {},
+  Scale: {
+    RESIZE: 'RESIZE',
+    NO_CENTER: 'NO_CENTER',
+  },
 }));
 
 beforeEach(() => {
@@ -41,10 +45,12 @@ test('creates a Phaser game with the configured contract', () => {
   const [config] = firstCall as unknown as [Phaser.Types.Core.GameConfig];
   expect(config).toMatchObject({
     type: Phaser.AUTO,
-    width: GAME_WIDTH,
-    height: GAME_HEIGHT,
     parent,
     backgroundColor: GAME_BACKGROUND_COLOR,
+    scale: {
+      mode: Phaser.Scale.RESIZE,
+      autoCenter: Phaser.Scale.NO_CENTER,
+    },
   });
   expect(config.scene).toHaveLength(1);
   expect((config.scene as unknown[])[0]).toBeInstanceOf(VillageScene);

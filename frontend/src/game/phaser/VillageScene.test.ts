@@ -1,3 +1,4 @@
+import * as Phaser from 'phaser';
 import { BACKEND_WS_URL } from '../../constants.ts';
 import { WORLD_PIXEL_HEIGHT, WORLD_PIXEL_WIDTH } from '../domain/villageMap.ts';
 import {
@@ -91,6 +92,11 @@ vi.mock('phaser', () => ({
     events = {
       once: vi.fn(),
     };
+    scale = {
+      on: vi.fn(),
+      off: vi.fn(),
+      updateBounds: vi.fn(),
+    };
     anims = {
       create: vi.fn(),
       generateFrameNumbers: vi.fn(() => []),
@@ -102,6 +108,11 @@ vi.mock('phaser', () => ({
   Scenes: {
     Events: {
       SHUTDOWN: 'shutdown',
+    },
+  },
+  Scale: {
+    Events: {
+      RESIZE: 'resize',
     },
   },
 }));
@@ -135,7 +146,6 @@ test('VillageScene connects to the backend and sends changed player positions', 
   sceneState.cursorKeys.right.isDown = false;
   scene.update(1000, 1000);
 
-  // The player did not move this frame, so no duplicate position is sent.
   expect(connection.sendMove).toHaveBeenCalledTimes(1);
 });
 
@@ -187,6 +197,28 @@ test('VillageScene calls onPlayerReady with the assigned player ID on welcome', 
   callbacks.onWelcome('my-player-id', []);
 
   expect(onPlayerReady).toHaveBeenCalledWith('my-player-id');
+});
+
+test('VillageScene registers and removes the Phaser resize handler', () => {
+  const connection = createConnection();
+  connectToServerMock.mockReturnValue(connection);
+  const scene = new VillageScene();
+
+  scene.create();
+
+  expect(scene.scale.on).toHaveBeenCalledWith(Phaser.Scale.Events.RESIZE, expect.any(Function), scene);
+  const resizeHandler = vi.mocked(scene.scale.on).mock.calls[0]?.[1];
+
+  if (typeof resizeHandler !== 'function') {
+    throw new Error('resize handler is required');
+  }
+
+  resizeHandler.call(scene);
+  expect(scene.scale.updateBounds).toHaveBeenCalled();
+
+  scene.shutdown();
+
+  expect(scene.scale.off).toHaveBeenCalledWith(Phaser.Scale.Events.RESIZE, resizeHandler, scene);
 });
 
 test('VillageScene closes the connection and destroys remote players on shutdown', () => {
