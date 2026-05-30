@@ -1,0 +1,28 @@
+# Caddy リバースプロキシ設定（本番 / HTTPS 自動取得）
+# 変数は docker-compose.prod.yml の environment から注入されます。
+
+{$APP_DOMAIN} {
+	# ゲーム同期の WebSocket はルートパスに来るため、Upgrade ヘッダで判定して
+	# backend へ振り分ける（それ以外の通常リクエストは frontend へ）。
+	@websocket {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+
+	handle /api/* {
+		reverse_proxy backend:3000
+	}
+
+	handle @websocket {
+		reverse_proxy backend:3000
+	}
+
+	handle {
+		reverse_proxy frontend:5173
+	}
+}
+
+# LiveKit signaling は専用サブドメインで root にプロキシ（パス書き換え不要）。
+{$LIVEKIT_DOMAIN} {
+	reverse_proxy livekit:7880
+}

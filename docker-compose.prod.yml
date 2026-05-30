@@ -1,0 +1,52 @@
+# 本番用 Compose（EC2 / HTTPS）。
+# 起動: docker compose -f docker-compose.prod.yml up --build -d
+#
+# 開発用 docker-compose.yml との違い:
+#   - ソースの bind mount を廃止（ビルド済みイメージで動かす）
+#   - 内部ポート(3000/5173/7880)は公開しない（Caddy が内部ネットワーク経由で中継）
+#   - Caddy を追加し 80/443 で HTTPS を終端（証明書は Let's Encrypt 自動取得）
+#   - restart: unless-stopped で当日の安定性を確保
+
+services:
+  backend:
+    build: ./backend
+    environment:
+      PORT: "3000"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-devkey}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-secret}"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_BACKEND_WS_URL: "${VITE_BACKEND_WS_URL}"
+      VITE_LIVEKIT_URL: "${VITE_LIVEKIT_URL}"
+      VITE_LIVEKIT_TOKEN_API_URL: "${VITE_LIVEKIT_TOKEN_API_URL}"
+    restart: unless-stopped
+
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev --bind 0.0.0.0 --node-ip ${LIVEKIT_NODE_IP}
+    ports:
+      - "7881:7881"        # ICE/TCP フォールバック
+      - "7882:7882/udp"    # WebRTC メディア（必須）
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on: [backend, frontend, livekit]
+    environment:
+      APP_DOMAIN: "${APP_DOMAIN}"
+      LIVEKIT_DOMAIN: "${LIVEKIT_DOMAIN}"
+    ports:
+      - "80:80"            # Let's Encrypt の HTTP-01 チャレンジに必要
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
