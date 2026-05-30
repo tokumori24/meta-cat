@@ -28,16 +28,25 @@ beforeEach(() => {
 
 test('creates a Phaser game with the configured contract', () => {
   const parent = document.createElement('div');
+  const onPlayerReady = vi.fn();
 
-  const game = createGame(parent);
+  const game = createGame(parent, { onPlayerReady });
 
-  expect(gameConstructorMock).toHaveBeenCalledWith({
+  const firstCall = gameConstructorMock.mock.calls[0];
+
+  if (!firstCall) {
+    throw new Error('Phaser game constructor call is required');
+  }
+
+  const [config] = firstCall as unknown as [Phaser.Types.Core.GameConfig];
+  expect(config).toMatchObject({
     type: Phaser.AUTO,
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
     parent,
     backgroundColor: GAME_BACKGROUND_COLOR,
-    scene: [VillageScene],
   });
+  expect(config.scene).toHaveLength(1);
+  expect((config.scene as unknown[])[0]).toBeInstanceOf(VillageScene);
   expect(game).toEqual({ destroy: destroyMock });
 });

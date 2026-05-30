@@ -3,12 +3,19 @@ import request from 'supertest';
 import test from 'node:test';
 import { HEALTH_ROUTE_PATH } from '../../src/adapters/http/constants.ts';
 import { createServer, startServer } from '../../src/infrastructure/server.ts';
+import type { LiveKitTokenPort } from '../../src/usecases/liveKitPorts.ts';
+
+const liveKitTokenPort: LiveKitTokenPort = {
+  async issueToken() {
+    return 'mock-token';
+  },
+};
 
 test('createServer wires the HTTP router', async () => {
   const app = createServer({
     now: () => new Date('2026-05-29T00:00:00.000Z'),
     uptimeSeconds: () => 2,
-  });
+  }, liveKitTokenPort);
 
   const response = await request(app).get(HEALTH_ROUTE_PATH);
 
@@ -20,7 +27,7 @@ test('startServer listens on the configured port', async () => {
   const app = createServer({
     now: () => new Date('2026-05-29T00:00:00.000Z'),
     uptimeSeconds: () => 0,
-  });
+  }, liveKitTokenPort);
 
   const server = startServer(app, { port: 0 });
 
