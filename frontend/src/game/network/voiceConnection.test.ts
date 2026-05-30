@@ -149,6 +149,22 @@ test('connectToVoice calls onNeedsInteraction when audio playback is blocked', (
   expect(onNeedsInteraction).toHaveBeenCalled();
 });
 
+test('VoiceConnection setMicrophoneEnabled delegates to the local participant', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    json: async () => ({ token: 'jwt-token' }),
+  })));
+
+  const connection = connectToVoice('ws://livekit', 'http://backend/token', 'village', 'player-1', {
+    onStatusChanged: vi.fn(),
+    onNeedsInteraction: vi.fn(),
+  });
+
+  await connection.setMicrophoneEnabled(false);
+
+  expect(roomInstances[0].localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+});
+
 test('connectToVoice reports disconnected status and removes audio elements on disconnect', () => {
   vi.stubGlobal('fetch', vi.fn(async () => ({
     ok: true,
