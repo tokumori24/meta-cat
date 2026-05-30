@@ -18,20 +18,30 @@ beforeEach(() => {
   phaserGameOnPlayerReady = undefined;
 });
 
-test('renders the Vite starter screen', () => {
+test('renders Phaser game as main content without hero', () => {
   render(<App />);
 
-  expect(screen.getByRole('heading', { name: 'TAKT Frontend' })).toBeInTheDocument();
-  expect(screen.getByText('React + Vite')).toBeInTheDocument();
   expect(screen.getByTestId('phaser-game')).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'TAKT Frontend' })).not.toBeInTheDocument();
+  expect(screen.queryByText('React + Vite')).not.toBeInTheDocument();
 });
 
 test('renders the voice panel after the Phaser scene reports the player ID', () => {
   render(<App />);
 
-  act(() => {
-    phaserGameOnPlayerReady?.('player-1');
-  });
+  reportPlayerReady('player-1');
 
   expect(screen.getByTestId('voice-panel')).toHaveTextContent('player-1');
 });
+
+function reportPlayerReady(playerId: string): void {
+  if (!phaserGameOnPlayerReady) {
+    throw new Error('PhaserGame onPlayerReady callback is required');
+  }
+
+  const onPlayerReady = phaserGameOnPlayerReady;
+
+  act(() => {
+    onPlayerReady(playerId);
+  });
+}
