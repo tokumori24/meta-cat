@@ -17,6 +17,7 @@ beforeEach(() => {
   connectToVoiceMock.mockReturnValue({
     enableAudio: vi.fn(async () => undefined),
     setMicrophoneEnabled: vi.fn(async () => undefined),
+    sendCatCollision: vi.fn(async () => undefined),
     disconnect: disconnectMock,
   });
 });
@@ -31,6 +32,20 @@ test('VoicePanel connects with the player ID and renders status updates', () => 
 
   expect(connectToVoiceMock.mock.calls[0][3]).toBe('player-1');
   expect(screen.getByText('Voice connected')).toBeInTheDocument();
+});
+
+test('VoicePanel reports the connection on mount and clears it on unmount', () => {
+  const onConnectionReady = vi.fn();
+  const { unmount } = render(
+    <VoicePanel playerId="player-1" onConnectionReady={onConnectionReady} />,
+  );
+  const connection = connectToVoiceMock.mock.results[0].value;
+
+  expect(onConnectionReady).toHaveBeenCalledWith(connection);
+
+  unmount();
+
+  expect(onConnectionReady).toHaveBeenCalledWith(null);
 });
 
 test('VoicePanel shows enable button when interaction is needed', () => {
@@ -52,6 +67,7 @@ test('VoicePanel hides enable button after enableAudio succeeds', async () => {
   connectToVoiceMock.mockReturnValue({
     enableAudio: enableAudioMock,
     setMicrophoneEnabled: vi.fn(async () => undefined),
+    sendCatCollision: vi.fn(async () => undefined),
     disconnect: disconnectMock,
   });
   render(<VoicePanel playerId="player-1" />);
@@ -76,6 +92,7 @@ test('VoicePanel shows error status when enableAudio fails', async () => {
   connectToVoiceMock.mockReturnValue({
     enableAudio: enableAudioMock,
     setMicrophoneEnabled: vi.fn(async () => undefined),
+    sendCatCollision: vi.fn(async () => undefined),
     disconnect: disconnectMock,
   });
   render(<VoicePanel playerId="player-1" />);
@@ -120,6 +137,7 @@ test('VoicePanel calls setMicrophoneEnabled(false) on first toggle', async () =>
   connectToVoiceMock.mockReturnValue({
     enableAudio: vi.fn(async () => undefined),
     setMicrophoneEnabled: setMicrophoneEnabledMock,
+    sendCatCollision: vi.fn(async () => undefined),
     disconnect: disconnectMock,
   });
   render(<VoicePanel playerId="player-1" />);
@@ -142,6 +160,7 @@ test('VoicePanel shows MicOff icon when voice is disabled', async () => {
   connectToVoiceMock.mockReturnValue({
     enableAudio: vi.fn(async () => undefined),
     setMicrophoneEnabled: setMicrophoneEnabledMock,
+    sendCatCollision: vi.fn(async () => undefined),
     disconnect: disconnectMock,
   });
   render(<VoicePanel playerId="player-1" />);
@@ -167,6 +186,7 @@ test('VoicePanel shows error status when setMicrophoneEnabled fails', async () =
   connectToVoiceMock.mockReturnValue({
     enableAudio: vi.fn(async () => undefined),
     setMicrophoneEnabled: setMicrophoneEnabledMock,
+    sendCatCollision: vi.fn(async () => undefined),
     disconnect: disconnectMock,
   });
   render(<VoicePanel playerId="player-1" />);

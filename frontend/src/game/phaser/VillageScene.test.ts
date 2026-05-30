@@ -6,6 +6,7 @@ import {
   PLAYER_ANIM_WALK_RIGHT,
   PLAYER_SPEED_PIXELS_PER_SECOND,
 } from '../domain/player.ts';
+import { CAT_COLLISION_COOLDOWN_MS, CAT_COLLISION_EVENT_TYPE } from '../domain/catCollision.ts';
 import type { ServerConnection, ServerConnectionCallbacks } from '../network/serverConnection.ts';
 import { VillageScene } from './VillageScene.ts';
 
@@ -197,6 +198,34 @@ test('VillageScene calls onPlayerReady with the assigned player ID on welcome', 
   callbacks.onWelcome('my-player-id', []);
 
   expect(onPlayerReady).toHaveBeenCalledWith('my-player-id');
+});
+
+test('VillageScene emits cat collision events with cooldown', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-05-30T00:00:00.000Z'));
+  const connection = createConnection();
+  const onCatCollision = vi.fn();
+  connectToServerMock.mockReturnValue(connection);
+  const scene = new VillageScene(vi.fn(), onCatCollision);
+
+  scene.create();
+  const callbacks = connectToServerMock.mock.calls[0][1] as ServerConnectionCallbacks;
+  callbacks.onWelcome('local-cat', [{ playerId: 'remote-cat', x: WORLD_PIXEL_WIDTH / 2, y: WORLD_PIXEL_HEIGHT / 2 }]);
+
+  scene.update(1000, 16);
+  scene.update(1000 + CAT_COLLISION_COOLDOWN_MS - 1, 16);
+  scene.update(1000 + CAT_COLLISION_COOLDOWN_MS, 16);
+
+  expect(onCatCollision).toHaveBeenCalledTimes(2);
+  expect(onCatCollision).toHaveBeenCalledWith({
+    type: CAT_COLLISION_EVENT_TYPE,
+    roomName: 'village',
+    fromCatId: 'local-cat',
+    toCatId: 'remote-cat',
+    occurredAt: '2026-05-30T00:00:00.000Z',
+  });
+
+  vi.useRealTimers();
 });
 
 test('VillageScene registers and removes the Phaser resize handler', () => {

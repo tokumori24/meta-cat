@@ -1,3 +1,4 @@
 export const PORT_ENV_VAR = 'PORT';
+export const LIVEKIT_URL_ENV_VAR = 'LIVEKIT_URL';
 export const LIVEKIT_API_KEY_ENV_VAR = 'LIVEKIT_API_KEY';
 export const LIVEKIT_API_SECRET_ENV_VAR = 'LIVEKIT_API_SECRET';

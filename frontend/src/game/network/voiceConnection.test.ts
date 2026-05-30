@@ -5,6 +5,7 @@ type RoomHandler = (...args: readonly unknown[]) => void;
 const {
   roomInstances,
   RoomEvent,
+  ConnectionState,
   Track,
   RoomMock,
 } = vi.hoisted(() => {
@@ -16,6 +17,11 @@ const {
     TrackUnsubscribed: 'trackUnsubscribed',
     AudioPlaybackStatusChanged: 'audioPlaybackChanged',
   } as const;
+  const connectionState = {
+    Connecting: 'connecting',
+    Connected: 'connected',
+    Disconnected: 'disconnected',
+  } as const;
   const track = {
     Kind: {
       Audio: 'audio',
@@ -26,15 +32,19 @@ const {
   class RoomMockClass {
     handlers = new Map<string, RoomHandler>();
     canPlaybackAudio = true;
+    state: (typeof connectionState)[keyof typeof connectionState] = connectionState.Connecting;
     connect = vi.fn(async () => {
+      this.state = connectionState.Connected;
       this.emit(events.Connected);
     });
     disconnect = vi.fn(() => {
+      this.state = connectionState.Disconnected;
       this.emit(events.Disconnected);
     });
     startAudio = vi.fn(async () => undefined);
     localParticipant = {
       setMicrophoneEnabled: vi.fn(async () => undefined),
+      publishData: vi.fn(async () => undefined),
     };
 
     constructor() {
@@ -60,12 +70,14 @@ const {
   return {
     roomInstances: instances,
     RoomEvent: events,
+    ConnectionState: connectionState,
     Track: track,
     RoomMock: RoomMockClass,
   };
 });
 
 vi.mock('livekit-client', () => ({
+  ConnectionState,
   Room: RoomMock,
   RoomEvent,
   Track,
@@ -163,6 +175,83 @@ test('VoiceConnection setMicrophoneEnabled delegates to the local participant', 
   await connection.setMicrophoneEnabled(false);
 
   expect(roomInstances[0].localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+});
+
+test('VoiceConnection sendCatCollision publishes the event to the cat collision topic', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    json: async () => ({ token: 'jwt-token' }),
+  })));
+
+  const connection = connectToVoice('ws://livekit', 'http://backend/token', 'village', 'player-1', {
+    onStatusChanged: vi.fn(),
+    onNeedsInteraction: vi.fn(),
+  });
+  await vi.waitFor(() => {
+    expect(roomInstances[0].state).toBe(ConnectionState.Connected);
+  });
+  const event = {
+    type: 'cat_collision' as const,
+    roomName: 'village',
+    fromCatId: 'cat-1',
+    toCatId: 'cat-2',
+    occurredAt: '2026-05-30T00:00:00.000Z',
+  };
+
+  await connection.sendCatCollision(event);
+
+  expect(roomInstances[0].localParticipant.publishData).toHaveBeenCalledWith(
+    new TextEncoder().encode(JSON.stringify(event)),
+    { reliable: true, topic: 'cat_collision' },
+  );
+});
+
+test('VoiceConnection sendCatCollision skips publishing before LiveKit connects', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    json: async () => ({ token: 'jwt-token' }),
+  })));
+
+  const connection = connectToVoice('ws://livekit', 'http://backend/token', 'village', 'player-1', {
+    onStatusChanged: vi.fn(),
+    onNeedsInteraction: vi.fn(),
+  });
+
+  await connection.sendCatCollision({
+    type: 'cat_collision',
+    roomName: 'village',
+    fromCatId: 'cat-1',
+    toCatId: 'cat-2',
+    occurredAt: '2026-05-30T00:00:00.000Z',
+  });
+
+  expect(roomInstances[0].localParticipant.publishData).not.toHaveBeenCalled();
+});
+
+test('VoiceConnection sendCatCollision skips publishing after disconnect', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    json: async () => ({ token: 'jwt-token' }),
+  })));
+
+  const connection = connectToVoice('ws://livekit', 'http://backend/token', 'village', 'player-1', {
+    onStatusChanged: vi.fn(),
+    onNeedsInteraction: vi.fn(),
+  });
+  await vi.waitFor(() => {
+    expect(roomInstances[0].state).toBe(ConnectionState.Connected);
+  });
+
+  connection.disconnect();
+  await connection.sendCatCollision({
+    type: 'cat_collision',
+    roomName: 'village',
+    fromCatId: 'cat-1',
+    toCatId: 'cat-2',
+    occurredAt: '2026-05-30T00:00:00.000Z',
+  });
+
+  expect(roomInstances[0].localParticipant.publishData).not.toHaveBeenCalled();
 });
 
 test('connectToVoice reports disconnected status and removes audio elements on disconnect', () => {

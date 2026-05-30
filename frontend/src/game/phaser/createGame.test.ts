@@ -33,8 +33,9 @@ beforeEach(() => {
 test('creates a Phaser game with the configured contract', () => {
   const parent = document.createElement('div');
   const onPlayerReady = vi.fn();
+  const onCatCollision = vi.fn();
 
-  const game = createGame(parent, { onPlayerReady });
+  const game = createGame(parent, { onPlayerReady, onCatCollision });
 
   const firstCall = gameConstructorMock.mock.calls[0];
 
