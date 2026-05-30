@@ -9,6 +9,7 @@ export type VoiceConnectionCallbacks = {
 
 export type VoiceConnection = {
   enableAudio(): Promise<void>;
+  setMicrophoneEnabled(enabled: boolean): Promise<void>;
   disconnect(): void;
 };
 
@@ -71,6 +72,9 @@ export function connectToVoice(
   return {
     async enableAudio(): Promise<void> {
       await room.startAudio();
+    },
+    async setMicrophoneEnabled(enabled: boolean): Promise<void> {
+      await room.localParticipant.setMicrophoneEnabled(enabled);
     },
     disconnect(): void {
       aborted = true;
